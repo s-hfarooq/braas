@@ -9,6 +9,7 @@ import datetime
 import os
 from pathlib import Path
 import logging
+import requests
 from common.db import db
 from common.models import PromptCreate, PromptResponse, VideoCreate, VideoResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -67,6 +68,7 @@ class GenerateRequest(BaseModel):
 
 class GenerateResponse(BaseModel):
     result: str
+    video_generation_status: Optional[Dict[str, Any]] = None
 
 SYSTEM_PROMPT = """
 You are tasked with describing what is happening in a video based on a given keyword. When given a keyword, you should describe a typical video that would be found when searching for that keyword on social media platforms.
@@ -97,6 +99,27 @@ Your output should be in the following JSON format:
 
 Focus on describing what would be actually visible and happening in the video, as if you were explaining the scene to someone who cannot see it. The top and bottom text should follow common meme formats and humor styles associated with the keyword. Write your final output in the JSON format specified above, ensuring it is properly formatted. Omit tags in your response. Output ONLY the JSON.
 """
+
+async def trigger_video_generation(description: str) -> Dict[str, Any]:
+    """
+    Trigger video generation by making a request to the video generation service.
+    """
+    video_service_url = "http://localhost:8000"
+    payload = {
+        "prompt": description,
+        "num_inference_steps": 5,
+        "model_name": "llama3.2",
+        "generate_script": True,
+        "generate_audio": True
+    }
+    
+    try:
+        response = requests.post(video_service_url, json=payload)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to trigger video generation: {str(e)}")
+        return {"error": str(e)}
 
 @app.post("/generate", response_model=GenerateResponse)
 async def generate_description(request: GenerateRequest):
@@ -143,7 +166,14 @@ async def generate_description(request: GenerateRequest):
         logger.info(f"Storing prompt in database: {prompt_data}")
         await db.store_prompt(prompt_data)
         
-        return GenerateResponse(result=json.dumps(content))
+        # Trigger video generation with the generated description
+        logger.info("Triggering video generation")
+        video_status = await trigger_video_generation(content["videoDescription"])
+        
+        return GenerateResponse(
+            result=json.dumps(content),
+            video_generation_status=video_status
+        )
     except json.JSONDecodeError as e:
         print("JSON Decode Error:", str(e))
         print("Response Content:", response_content)

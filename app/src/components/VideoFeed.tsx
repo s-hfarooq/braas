@@ -367,9 +367,8 @@ const VideoFeed: React.FC = () => {
           <video
             autoPlay
             loop
-            muted
             playsInline
-            controls // Added controls for debugging
+            controls // Video controls for audio and playback
             style={{
               width: '100%',
               height: '100%',
@@ -450,61 +449,67 @@ const VideoFeed: React.FC = () => {
         >
           <div
             style={{
-              width: '60vh',
-              height: '60vh',
-              borderRadius: '8px',
               display: 'flex',
+              flexDirection: 'column',
               alignItems: 'center',
-              justifyContent: 'center',
-              position: 'relative',
-              overflow: 'hidden',
+              gap: '20px',
+              width: '60vh',
             }}
           >
-            {renderContent(video)}
+            {/* Video container */}
             <div
               style={{
-                position: 'absolute',
-                top: '20px',
-                left: '20px',
-                right: '20px',
-                textAlign: 'center',
-                backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                padding: '8px 12px',
+                width: '100%',
+                height: '60vh',
                 borderRadius: '8px',
-                fontSize: '18px',
-                zIndex: 1,
+                position: 'relative',
+                overflow: 'hidden',
               }}
             >
-              {video.topText}
+              {renderContent(video)}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '20px',
+                  left: '20px',
+                  right: '20px',
+                  textAlign: 'center',
+                  backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  fontSize: '18px',
+                  zIndex: 1,
+                }}
+              >
+                {video.topText}
+              </div>
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: '20px',
+                  left: '20px',
+                  right: '20px',
+                  textAlign: 'center',
+                  backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  fontSize: '18px',
+                  zIndex: 1,
+                }}
+              >
+                {video.bottomText}
+              </div>
             </div>
+
+            {/* Description below video */}
             <div
               style={{
-                position: 'absolute',
-                bottom: '60px',
-                left: '20px',
-                right: '20px',
-                textAlign: 'center',
+                width: '100%',
                 backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                padding: '8px 12px',
+                padding: '12px 16px',
                 borderRadius: '8px',
-                fontSize: '18px',
-                zIndex: 1,
-              }}
-            >
-              {video.bottomText}
-            </div>
-            <div
-              style={{
-                position: 'absolute',
-                bottom: '20px',
-                left: '20px',
-                right: '20px',
+                fontSize: '16px',
                 textAlign: 'center',
-                backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                padding: '8px 12px',
-                borderRadius: '8px',
-                fontSize: '14px',
-                zIndex: 1,
               }}
             >
               {video.description}
