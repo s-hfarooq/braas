@@ -3,6 +3,10 @@ from pydantic import BaseModel
 from ollama import chat
 from ollama import ChatResponse
 import uvicorn
+from typing import Dict, Any, Optional
+import json
+import datetime
+from common.db import db
 
 app = FastAPI(
     title="Video Description Generator",
@@ -10,6 +14,33 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Base Models
+class VideoBase(BaseModel):
+    prompt: str
+    description: str
+    content: str
+    metadata: Dict[str, Any]
+
+class VideoCreate(VideoBase):
+    pass
+
+class Video(VideoBase):
+    id: str
+
+class PromptBase(BaseModel):
+    topic: str
+    output: str
+    top_text: str
+    bottom_text: str
+    metadata: Dict[str, Any]
+
+class PromptCreate(PromptBase):
+    pass
+
+class Prompt(PromptBase):
+    id: str
+
+# Request Models
 class GenerateRequest(BaseModel):
     topic: str
 
@@ -49,10 +80,14 @@ Focus on describing what would be actually visible and happening in the video, a
 @app.post("/generate", response_model=GenerateResponse)
 async def generate_description(request: GenerateRequest):
     try:
-        response: ChatResponse = chat(model='llama3.2:1b', messages=[
+        # Replace the placeholder in the system prompt
+        formatted_prompt = SYSTEM_PROMPT.replace("{{VIDEO_TOPIC}}", request.topic)
+        
+        # Get response from Ollama
+        response = chat(model='llama3.2:1b', messages=[
             {
                 'role': 'system',
-                'content': SYSTEM_PROMPT,
+                'content': formatted_prompt,
             },
             {
                 'role': 'user',
@@ -60,8 +95,39 @@ async def generate_description(request: GenerateRequest):
             },
         ])
         
-        return GenerateResponse(result=response.message.content)
+        # Print response for debugging
+        print("Ollama Response:", response)
+        
+        # Parse the response content as JSON
+        if isinstance(response, dict):
+            response_content = response.get('response', '')
+        else:
+            response_content = response.message.content
+            
+        content = json.loads(response_content)
+        
+        # Create prompt data
+        prompt_data = {
+            "topic": request.topic,
+            "output": content["videoDescription"],
+            "top_text": content["topText"],
+            "bottom_text": content["bottomText"],
+            "metadata": {
+                "generated_at": str(datetime.datetime.now()),
+                "model": "llama3.2:1b"
+            }
+        }
+        
+        # Store in database using the common db module
+        await db.store_prompt(prompt_data)
+        
+        return GenerateResponse(result=json.dumps(content))
+    except json.JSONDecodeError as e:
+        print("JSON Decode Error:", str(e))
+        print("Response Content:", response_content)
+        raise HTTPException(status_code=500, detail=f"Failed to parse LLM response as JSON: {str(e)}")
     except Exception as e:
+        print("General Error:", str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == '__main__':

@@ -14,8 +14,8 @@ services:
 
   video-description-service:
     build:
-      context: ./microservices/video-description-service
-      dockerfile: Dockerfile
+      context: .  # Changed to root context to access common and secrets
+      dockerfile: microservices/video-description-service/Dockerfile
     ports:
       - "5000:5000"
     volumes:

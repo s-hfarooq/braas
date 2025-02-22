@@ -5,7 +5,6 @@
 // Project: braas
 // Link: https://app.basic.tech/project/a9cf1e85-1cb1-461e-9c04-fcb5e0908369
 
-
 export const schema = {
   "project_id": "a9cf1e85-1cb1-461e-9c04-fcb5e0908369",
   "tables": {
@@ -40,9 +39,21 @@ export const schema = {
         "output": {
           "type": "string",
           "indexed": true
+        },
+        "top_text": {
+          "type": "string",
+          "indexed": true
+        },
+        "bottom_text": {
+          "type": "string",
+          "indexed": true
+        },
+        "metadata": {
+          "type": "json",
+          "indexed": true
         }
       }
     }
   },
-  "version": 1
+  "version": 2
 }

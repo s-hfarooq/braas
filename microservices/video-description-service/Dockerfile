@@ -12,11 +12,16 @@ RUN curl -L https://ollama.ai/install.sh | sh
 WORKDIR /app
 
 # Copy and install Python dependencies
-COPY requirements.txt .
+COPY microservices/video-description-service/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY app.py .
+# Copy application code and common module
+COPY microservices/video-description-service/app.py .
+COPY microservices/common /app/common
+COPY secrets.json /app/secrets.json
+
+# Add the current directory to Python path
+ENV PYTHONPATH=/app
 
 # Expose the FastAPI port
 EXPOSE 5000
