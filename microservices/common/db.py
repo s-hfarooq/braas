@@ -4,7 +4,13 @@ from fastapi import HTTPException
 import os
 import json
 from pathlib import Path
-from .models import PromptCreate, PromptResponse, VideoCreate, VideoResponse
+from .models import (
+    PromptCreate, PromptResponse, PromptData, PromptBase,
+    VideoCreate, VideoResponse, VideoData, VideoBase
+)
+import logging
+
+logger = logging.getLogger(__name__)
 
 class BasicDB:
     @staticmethod
@@ -47,19 +53,41 @@ class BasicDB:
             "Content-Type": "application/json"
         }
 
-    async def store_prompt(self, prompt_data: PromptCreate) -> PromptResponse:
+    async def store_prompt(self, prompt_data: PromptCreate) -> PromptBase:
         """Store a prompt in the Basic.tech database."""
         url = f"{self.base_url}/prompts"
         payload = {"value": prompt_data.model_dump()}
         
         try:
+            logger.info(f"Sending request to Basic.tech API with payload: {json.dumps(payload, indent=2)}")
             response = requests.post(url, json=payload, headers=self.headers)
             response.raise_for_status()
-            return PromptResponse(**response.json())
+            response_json = response.json()
+            logger.info(f"Raw Basic.tech API Response: {json.dumps(response_json, indent=2)}")
+            
+            # Try to parse the response and log each step
+            try:
+                prompt_response = PromptResponse(**response_json)
+                logger.info(f"Parsed PromptResponse: {prompt_response.model_dump_json(indent=2)}")
+                prompt_data = prompt_response.data
+                logger.info(f"Parsed PromptData: {prompt_data.model_dump_json(indent=2)}")
+                prompt_value = prompt_data.value
+                logger.info(f"Parsed PromptBase: {prompt_value.model_dump_json(indent=2)}")
+                return prompt_value
+            except Exception as e:
+                logger.error(f"Error during response parsing: {str(e)}")
+                logger.error(f"Response structure: {type(response_json)}")
+                if isinstance(response_json, dict):
+                    logger.error(f"Response keys: {list(response_json.keys())}")
+                raise
         except requests.exceptions.RequestException as e:
+            logger.error(f"API Error Response: {e.response.text if hasattr(e, 'response') else str(e)}")
             raise HTTPException(status_code=500, detail=f"Failed to store prompt in database: {str(e)}")
+        except Exception as e:
+            logger.error(f"Validation Error: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to process response: {str(e)}")
 
-    async def store_video(self, video_data: VideoCreate) -> VideoResponse:
+    async def store_video(self, video_data: VideoCreate) -> VideoBase:
         """Store a video in the Basic.tech database."""
         url = f"{self.base_url}/video"
         payload = {"value": video_data.model_dump()}
@@ -67,11 +95,17 @@ class BasicDB:
         try:
             response = requests.post(url, json=payload, headers=self.headers)
             response.raise_for_status()
-            return VideoResponse(**response.json())
+            response_json = response.json()
+            logger.info(f"Basic.tech API Response: {json.dumps(response_json, indent=2)}")
+            return VideoResponse(**response_json).data.value
         except requests.exceptions.RequestException as e:
+            logger.error(f"API Error Response: {e.response.text if hasattr(e, 'response') else str(e)}")
             raise HTTPException(status_code=500, detail=f"Failed to store video in database: {str(e)}")
+        except Exception as e:
+            logger.error(f"Validation Error: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to process response: {str(e)}")
 
-    async def get_prompts(self, limit: int = 10) -> List[PromptResponse]:
+    async def get_prompts(self, limit: int = 10) -> List[PromptBase]:
         """Retrieve prompts from the Basic.tech database."""
         url = f"{self.base_url}/prompts"
         params = {"limit": limit}
@@ -80,11 +114,16 @@ class BasicDB:
             response = requests.get(url, headers=self.headers, params=params)
             response.raise_for_status()
             data = response.json()
-            return [PromptResponse(**item) for item in data]
+            logger.info(f"Basic.tech API Response: {json.dumps(data, indent=2)}")
+            return [PromptResponse(**item).data.value for item in data]
         except requests.exceptions.RequestException as e:
+            logger.error(f"API Error Response: {e.response.text if hasattr(e, 'response') else str(e)}")
             raise HTTPException(status_code=500, detail=f"Failed to retrieve prompts from database: {str(e)}")
+        except Exception as e:
+            logger.error(f"Validation Error: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to process response: {str(e)}")
 
-    async def get_videos(self, limit: int = 10) -> List[VideoResponse]:
+    async def get_videos(self, limit: int = 10) -> List[VideoBase]:
         """Retrieve videos from the Basic.tech database."""
         url = f"{self.base_url}/video"
         params = {"limit": limit}
@@ -93,9 +132,14 @@ class BasicDB:
             response = requests.get(url, headers=self.headers, params=params)
             response.raise_for_status()
             data = response.json()
-            return [VideoResponse(**item) for item in data]
+            logger.info(f"Basic.tech API Response: {json.dumps(data, indent=2)}")
+            return [VideoResponse(**item).data.value for item in data]
         except requests.exceptions.RequestException as e:
+            logger.error(f"API Error Response: {e.response.text if hasattr(e, 'response') else str(e)}")
             raise HTTPException(status_code=500, detail=f"Failed to retrieve videos from database: {str(e)}")
+        except Exception as e:
+            logger.error(f"Validation Error: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to process response: {str(e)}")
 
 # Create a singleton instance
 db = BasicDB() 

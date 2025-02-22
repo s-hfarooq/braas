@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Dict, Any
+from typing import Dict, Any, Generic, TypeVar
 from datetime import datetime
 
 class VideoBase(BaseModel):
@@ -13,9 +13,14 @@ class VideoCreate(VideoBase):
     """Model for creating a new video"""
     pass
 
-class VideoResponse(VideoBase):
-    """Model for video response including the ID"""
+class VideoData(BaseModel):
+    """Model for video data including the ID"""
     id: str
+    value: VideoBase
+
+class VideoResponse(BaseModel):
+    """Model for Basic.tech API response containing video data"""
+    data: VideoData
 
 class PromptBase(BaseModel):
     """Base model for prompt data"""
@@ -25,13 +30,18 @@ class PromptBase(BaseModel):
     bottom_text: str
     metadata: Dict[str, Any] = Field(default_factory=lambda: {
         "generated_at": datetime.now().isoformat(),
-        "model": "llama3.2:1b"
+        "model": "llama3.2:3b"
     })
 
 class PromptCreate(PromptBase):
     """Model for creating a new prompt"""
     pass
 
-class PromptResponse(PromptBase):
-    """Model for prompt response including the ID"""
-    id: str 
+class PromptData(BaseModel):
+    """Model for prompt data including the ID"""
+    id: str
+    value: PromptBase
+
+class PromptResponse(BaseModel):
+    """Model for Basic.tech API response containing prompt data"""
+    data: PromptData 
