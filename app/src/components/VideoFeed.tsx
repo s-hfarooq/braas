@@ -3,7 +3,29 @@ import React, { useEffect, useState } from 'react';
 interface VideoItem {
   id: number;
   color: string;
+  description: string;
+  topText: string;
+  bottomText: string;
 }
+
+interface GenerateResponse {
+  result: string;
+}
+
+const API_URL = 'http://localhost:5000';
+
+const TOPICS = [
+  "cat fails",
+  "cooking disaster",
+  "dance challenge",
+  "gaming rage",
+  "parkour fail",
+  "cute puppy",
+  "skateboard trick",
+  "magic trick fail",
+  "unexpected ending",
+  "talent show moment"
+];
 
 const VideoFeed: React.FC = () => {
   const [videos, setVideos] = useState<VideoItem[]>([]);
@@ -15,32 +37,90 @@ const VideoFeed: React.FC = () => {
     return colors[Math.floor(Math.random() * colors.length)];
   };
 
+  // Get a random topic
+  const getRandomTopic = () => {
+    return TOPICS[Math.floor(Math.random() * TOPICS.length)];
+  };
+
+  // Generate video description from service
+  const generateVideoDescription = async (): Promise<VideoItem> => {
+    try {
+      const response = await fetch(`${API_URL}/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        mode: 'cors',
+        credentials: 'include',
+        body: JSON.stringify({ topic: getRandomTopic() }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to generate video description: ${response.status} ${response.statusText}`);
+      }
+
+      const data: GenerateResponse = await response.json();
+      const content = JSON.parse(data.result);
+
+      return {
+        id: Date.now(),
+        color: getRandomColor(),
+        description: content.videoDescription,
+        topText: content.topText,
+        bottomText: content.bottomText,
+      };
+    } catch (error) {
+      console.error('Error generating video description:', error);
+      // Fallback to a basic video item if the service fails
+      return {
+        id: Date.now(),
+        color: getRandomColor(),
+        description: 'Failed to load description',
+        topText: 'Error',
+        bottomText: 'Please try again',
+      };
+    }
+  };
+
   // Generate initial videos
-  const generateVideos = (count: number, startIndex: number = 0) => {
-    return Array.from({ length: count }, (_, i) => ({
-      id: startIndex + i,
-      color: getRandomColor(),
-    }));
+  const generateInitialVideos = async (count: number) => {
+    setLoading(true);
+    try {
+      const newVideos = await Promise.all(
+        Array.from({ length: count }, () => generateVideoDescription())
+      );
+      setVideos(newVideos);
+    } catch (error) {
+      console.error('Error generating initial videos:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Load initial videos
   useEffect(() => {
-    setVideos(generateVideos(5));
+    generateInitialVideos(5);
   }, []);
 
   // Handle scroll to load more videos
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+  const handleScroll = async (e: React.UIEvent<HTMLDivElement>) => {
     const element = e.currentTarget;
     if (
       element.scrollHeight - element.scrollTop <= element.clientHeight * 1.5 &&
       !loading
     ) {
       setLoading(true);
-      // Simulate loading delay
-      setTimeout(() => {
-        setVideos(prev => [...prev, ...generateVideos(5, prev.length)]);
+      try {
+        const newVideos = await Promise.all(
+          Array.from({ length: 5 }, () => generateVideoDescription())
+        );
+        setVideos(prev => [...prev, ...newVideos]);
+      } catch (error) {
+        console.error('Error loading more videos:', error);
+      } finally {
         setLoading(false);
-      }, 500);
+      }
     }
   };
 
@@ -94,19 +174,53 @@ const VideoFeed: React.FC = () => {
               alignItems: 'center',
               justifyContent: 'center',
               position: 'relative',
+              overflow: 'hidden',
             }}
           >
             <div
               style={{
                 position: 'absolute',
-                bottom: '20px',
+                top: '20px',
+                left: '20px',
                 right: '20px',
+                textAlign: 'center',
                 backgroundColor: 'rgba(0, 0, 0, 0.5)',
                 padding: '8px 12px',
                 borderRadius: '8px',
+                fontSize: '18px',
               }}
             >
-              Video #{video.id + 1}
+              {video.topText}
+            </div>
+            <div
+              style={{
+                position: 'absolute',
+                bottom: '60px',
+                left: '20px',
+                right: '20px',
+                textAlign: 'center',
+                backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                padding: '8px 12px',
+                borderRadius: '8px',
+                fontSize: '18px',
+              }}
+            >
+              {video.bottomText}
+            </div>
+            <div
+              style={{
+                position: 'absolute',
+                bottom: '20px',
+                left: '20px',
+                right: '20px',
+                textAlign: 'center',
+                backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                padding: '8px 12px',
+                borderRadius: '8px',
+                fontSize: '14px',
+              }}
+            >
+              {video.description}
             </div>
           </div>
         </div>

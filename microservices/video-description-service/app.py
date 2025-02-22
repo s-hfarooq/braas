@@ -3,15 +3,35 @@ from pydantic import BaseModel
 from ollama import chat
 from ollama import ChatResponse
 import uvicorn
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple, Literal
 import json
 import datetime
+import os
+from pathlib import Path
+import logging
 from common.db import db
+from fastapi.middleware.cors import CORSMiddleware
+
+# Set up logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Video Description Generator",
     description="A service that generates video descriptions based on keywords",
     version="1.0.0"
+)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # Frontend URL
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
 )
 
 # Base Models
@@ -79,12 +99,13 @@ Focus on describing what would be actually visible and happening in the video, a
 
 @app.post("/generate", response_model=GenerateResponse)
 async def generate_description(request: GenerateRequest):
+    logger.info(f"Generating description for topic: {request.topic}")
     try:
         # Replace the placeholder in the system prompt
         formatted_prompt = SYSTEM_PROMPT.replace("{{VIDEO_TOPIC}}", request.topic)
         
         # Get response from Ollama
-        response = chat(model='llama3.2:1b', messages=[
+        response = chat(model='llama3.2:3b', messages=[
             {
                 'role': 'system',
                 'content': formatted_prompt,
@@ -97,12 +118,9 @@ async def generate_description(request: GenerateRequest):
         
         # Print response for debugging
         print("Ollama Response:", response)
-        
-        # Parse the response content as JSON
-        if isinstance(response, dict):
-            response_content = response.get('response', '')
-        else:
-            response_content = response.message.content
+        response_content = response["message"]["content"]
+        print(json.dumps(response_content, indent=4))
+    
             
         content = json.loads(response_content)
         
@@ -119,6 +137,7 @@ async def generate_description(request: GenerateRequest):
         }
         
         # Store in database using the common db module
+        logger.info(f"Storing prompt in database: {prompt_data}")
         await db.store_prompt(prompt_data)
         
         return GenerateResponse(result=json.dumps(content))

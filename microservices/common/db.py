@@ -7,10 +7,10 @@ from pathlib import Path
 
 class BasicDB:
     @staticmethod
-    def _load_credentials() -> Tuple[str, str]:
+    def _load_credentials() -> Tuple[str, str, str]:
         """
         Load Basic.tech credentials from secrets.json or environment variables.
-        Returns a tuple of (project_id, api_key).
+        Returns a tuple of (project_id, api_key, jwt).
         
         Raises:
             RuntimeError: If credentials cannot be loaded or are invalid
@@ -18,29 +18,31 @@ class BasicDB:
         # First try environment variables
         project_id = os.getenv("BASIC_PROJECT_ID")
         api_key = os.getenv("BASIC_API_KEY")
+        jwt = os.getenv("BASIC_JWT")
         
         # If environment variables are not set, try secrets.json
-        if not project_id or not api_key:
+        if not project_id or not api_key or not jwt:
             try:
                 secrets_path = Path("/app/secrets.json")
                 with open(secrets_path) as f:
                     secrets = json.load(f)
                     project_id = secrets.get("basic_project_id", "").split('/')[-1]
                     api_key = secrets.get("basic_api_key")
+                    jwt = secrets.get("basic_jwt")
             except (FileNotFoundError, json.JSONDecodeError, AttributeError) as e:
                 raise RuntimeError(f"Failed to load secrets.json and no environment variables set: {str(e)}")
 
-        if not project_id or not api_key:
+        if not project_id or not api_key or not jwt:
             raise RuntimeError("Missing required Basic.tech credentials")
             
-        return project_id, api_key
+        return project_id, api_key, jwt
 
     def __init__(self):
         # Load credentials using the helper function
-        self.project_id, self.api_key = self._load_credentials()
+        self.project_id, self.api_key, self.jwt = self._load_credentials()
         self.base_url = f"https://api.basic.tech/account/{self.project_id}/db"
         self.headers = {
-            "Authorization": f"Bearer {self.api_key}",
+            "Authorization": f"Bearer {self.jwt}",
             "Content-Type": "application/json"
         }
 
