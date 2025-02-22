@@ -1,5 +1,4 @@
 .venv/
-secrets.json
 
 **/package-lock.json
 **/node_modules/
@@ -14,3 +13,4 @@ env/
 **/output/
 *.DS_Store
 **/models/
+secrets.json
