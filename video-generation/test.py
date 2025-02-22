@@ -1,46 +1,84 @@
-# from diffusers import DiffusionPipeline
-
-# pipe = DiffusionPipeline.from_pretrained("rhymes-ai/Allegro")
-# pipe = pipe.to("mps")
-# pipe.enable_attention_slicing()
-
-# prompt = "Astronaut in a jungle, cold color palette, muted colors, detailed, 8k"
-# image = pipe(prompt).images[0]
-# print(type(image))
-
-# from diffusers import DiffusionPipeline
-
-# pipe = DiffusionPipeline.from_pretrained("ali-vilab/text-to-video-ms-1.7b")
-# pipe = pipe.to("mps")
-# pipe.enable_attention_slicing()
-
-# prompt = "Astronaut in a jungle, cold color palette, muted colors, detailed, 8k"
-# image = pipe(prompt).images[0]
-# image.show()  # This will display the image in your default image viewer
-
-
-
-
 import torch
-from diffusers import DiffusionPipeline, DPMSolverMultistepScheduler
+from diffusers import DiffusionPipeline
 from diffusers.utils import export_to_video
 import numpy as np
-from PIL import Image
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+import os
+from typing import Optional
+import uuid
+
+app = FastAPI(title="Video Generation API")
+
+class GenerationRequest(BaseModel):
+    prompt: str
+    num_inference_steps: Optional[int] = 10
+    output_format: Optional[str] = "mp4"
+    num_frames: Optional[int] = 16
+
+# Determine the best available device
+def get_device():
+    if torch.cuda.is_available():
+        return "cuda"
+    elif torch.backends.mps.is_available():
+        return "mps"
+    else:
+        return "cpu"
+
+# Initialize the pipeline
+device = get_device()
+print(f"Using device: {device}")
 
 pipe = DiffusionPipeline.from_pretrained("damo-vilab/text-to-video-ms-1.7b", torch_dtype=torch.float16, variant="fp16")
-pipe = pipe.to("mps")
-# pipe.enable_attention_slicing()
-# pipe.scheduler = DPMSolverMultistepScheduler.from_config(pipe.scheduler.config)
-# pipe.enable_model_cpu_offload()
+pipe = pipe.to(device)
 
-prompt = "Spiderman is surfing"
-video_frames = pipe(prompt, num_inference_steps=10).frames[0]
+if device == "cuda":
+    pipe.enable_model_cpu_offload()
+    pipe.enable_vae_slicing()
 
-print(video_frames)
+# Create output directory if it doesn't exist
+os.makedirs("output", exist_ok=True)
 
-# video_frames = pipe(prompt, num_inference_steps=25).frames
-# video_frames = [np.array(frame) for frame in video_frames[0]]
-video_path = export_to_video(video_frames)
-print(video_path)
+@app.post("/generate")
+async def generate_video(request: GenerationRequest):
+    try:
+        # Generate video frames
+        video_frames = pipe(
+            prompt=request.prompt,
+            num_inference_steps=request.num_inference_steps,
+            num_frames=request.num_frames
+        ).frames[0]
 
+        # Generate unique filename
+        print(video_frames)
+        filename = f"output/video_{uuid.uuid4()}.{request.output_format}"
+        
+        # Export video
+        video_path = export_to_video(video_frames, filename)
+        
+        return {
+            "status": "success",
+            "message": "Video generated successfully",
+            "file_path": video_path,
+            "details": {
+                "prompt": request.prompt,
+                "num_inference_steps": request.num_inference_steps,
+                "num_frames": request.num_frames,
+                "device_used": device
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/health")
+async def health_check():
+    return {
+        "status": "healthy",
+        "device": device,
+        "cuda_available": torch.cuda.is_available(),
+        "mps_available": torch.backends.mps.is_available()
+    }
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

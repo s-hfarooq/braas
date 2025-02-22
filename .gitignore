@@ -11,3 +11,6 @@ secrets.json
 **/cache/
 env/
 *.mp4
+**/output/
+*.DS_Store
+**/models/
