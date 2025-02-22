@@ -8,9 +8,10 @@ import os
 from typing import Optional
 import uuid
 import requests
-from gtts import gTTS
 from moviepy.editor import VideoFileClip, AudioFileClip, concatenate_videoclips
 import tempfile
+from TTS.api import TTS
+
 
 app = FastAPI(title="Video Generation API")
 
@@ -19,7 +20,7 @@ class GenerationRequest(BaseModel):
     num_inference_steps: Optional[int] = 10
     output_format: Optional[str] = "mp4"
     num_frames: Optional[int] = 16
-    model_name: Optional[str] = "mistral"  # Ollama model to use
+    model_name: Optional[str] = "llama3.2"  # Ollama model to use
     add_audio: Optional[bool] = True  # Control whether to add TTS audio to the video
 
 # Determine the best available device
@@ -48,9 +49,12 @@ def generate_script(prompt: str, model_name: str = "mistral") -> str:
     """
     try:
         response = requests.post('http://localhost:11434/api/generate', 
-                               json={
+                            json={
                                    "model": model_name,
-                                   "prompt": f"Write a short, engaging script for a video about: {prompt}. Keep it concise and natural, around 2-3 sentences. Only have narration and no audio descriptions of events. The text should only have things that should be spoken.",
+                                   "prompt": f"""Write a short, engaging script for a video about: {prompt}. 
+                                                Keep it concise and natural, around 2-3 sentences. 
+                                                Only have narration and no audio descriptions of events. 
+                                                The response should only have output that should be spoken and no additional content.""",
                                    "stream": False
                                })
         response.raise_for_status()
@@ -118,11 +122,12 @@ def add_audio_to_video(video_path, script_text):
         raise ValueError("Invalid script text for TTS")
         
     # Generate audio from script
-    tts = gTTS(text=script_text.strip(), lang='en')
-    
+    device = "mps"
+    tts = TTS(model_name="tts_models/en/ljspeech/tacotron2-DDC", progress_bar=False).to(device)
+
     # Save audio to temporary file
     with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as temp_audio:
-        tts.save(temp_audio.name)
+        tts.tts_to_file(text=script_text.strip(), file_path=temp_audio.name)
         
         # Load video and audio
         video = VideoFileClip(video_path)
