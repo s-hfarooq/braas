@@ -106,6 +106,7 @@ async def generate_description(request: GenerateRequest):
         formatted_prompt = SYSTEM_PROMPT.replace("{{VIDEO_TOPIC}}", request.topic)
         
         # Get response from Ollama
+        logger.info("Sending request to Ollama")
         response = chat(model='llama3.2:3b', messages=[
             {
                 'role': 'system',
@@ -117,12 +118,14 @@ async def generate_description(request: GenerateRequest):
             },
         ])
         
-        # Print response for debugging
-        print("Ollama Response:", response)
+        # Log response for debugging
+        logger.info("Received response from Ollama")
+        logger.debug(f"Raw Ollama response: {response}")
         response_content = response["message"]["content"]
-        print(json.dumps(response_content, indent=4))
-    
+        logger.info("Parsing response content as JSON")
+        
         content = json.loads(response_content)
+        logger.info("Successfully parsed JSON response")
         
         # Create prompt data using the new PromptCreate model
         prompt_data = PromptCreate(
@@ -147,6 +150,39 @@ async def generate_description(request: GenerateRequest):
         raise HTTPException(status_code=500, detail=f"Failed to parse LLM response as JSON: {str(e)}")
     except Exception as e:
         print("General Error:", str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/get_prompts")
+async def get_prompts(limit: int = 10, offset: int = 0):
+    logger.info(f"Getting prompts with limit={limit} and offset={offset}")
+    try:
+        raw_prompts = await db.get_prompts(limit)
+        logger.info(f"Retrieved {len(raw_prompts) if raw_prompts else 0} prompts from database")
+        
+        # Convert raw prompts to the expected format
+        formatted_prompts = []
+        for i, prompt in enumerate(raw_prompts):
+            # Extract the actual data from the Basic.tech response
+            prompt_value = prompt["data"]["value"]
+            formatted_prompts.append({
+                "data": {
+                    "id": str(i),
+                    "value": {
+                        "topic": prompt_value["topic"],
+                        "output": prompt_value["output"],
+                        "top_text": prompt_value["top_text"],
+                        "bottom_text": prompt_value["bottom_text"],
+                        "metadata": prompt_value.get("metadata", {})
+                    }
+                }
+            })
+        
+        logger.info(f"Returning {len(formatted_prompts)} formatted prompts")
+        logger.debug(f"Formatted prompts: {json.dumps(formatted_prompts, indent=2)}")
+        return formatted_prompts
+    except Exception as e:
+        logger.error(f"Error getting prompts: {str(e)}")
+        logger.exception("Full traceback:")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == '__main__':

@@ -115,7 +115,42 @@ class BasicDB:
             response.raise_for_status()
             data = response.json()
             logger.info(f"Basic.tech API Response: {json.dumps(data, indent=2)}")
-            return [PromptResponse(**item).data.value for item in data]
+            
+            # Check if data is a list
+            if not isinstance(data, list):
+                logger.error(f"Expected list response, got {type(data)}")
+                raise ValueError(f"Unexpected response format: {data}")
+            
+            prompts = []
+            for item in data:
+                try:
+                    # Ensure item is a dictionary
+                    if not isinstance(item, dict):
+                        logger.warning(f"Skipping non-dict item: {item}")
+                        continue
+                        
+                    # Create PromptResponse object
+                    prompt_response = PromptResponse(data=PromptData(
+                        id=item.get("id", ""),
+                        value=PromptBase(
+                            topic=item["data"]["value"]["topic"],
+                            output=item["data"]["value"]["output"],
+                            top_text=item["data"]["value"]["top_text"],
+                            bottom_text=item["data"]["value"]["bottom_text"],
+                            metadata=item["data"]["value"].get("metadata", {})
+                        )
+                    ))
+                    prompts.append(prompt_response.data.value)
+                except KeyError as ke:
+                    logger.error(f"Missing required field in item: {ke}")
+                    logger.debug(f"Problem item: {json.dumps(item, indent=2)}")
+                    continue
+                except Exception as e:
+                    logger.error(f"Error processing item: {str(e)}")
+                    logger.debug(f"Problem item: {json.dumps(item, indent=2)}")
+                    continue
+            
+            return prompts
         except requests.exceptions.RequestException as e:
             logger.error(f"API Error Response: {e.response.text if hasattr(e, 'response') else str(e)}")
             raise HTTPException(status_code=500, detail=f"Failed to retrieve prompts from database: {str(e)}")

@@ -14,5 +14,6 @@ env/
 *.DS_Store
 **/models/
 secrets.json
+.env
 
 **/__pycache__/
