@@ -5,13 +5,20 @@ import numpy as np
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import os
+import sys
 from typing import Optional
 import uuid
 import requests
 from moviepy.editor import VideoFileClip, AudioFileClip, concatenate_videoclips
 import tempfile
 from TTS.api import TTS
+import base64
 
+# Add parent directory to Python path to find common module
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from common.db import BasicDB
+from common.models import VideoCreate
 
 app = FastAPI(title="Video Generation API")
 
@@ -65,6 +72,39 @@ def generate_script(prompt: str, model_name: str = "mistral") -> str:
 # Create output directory if it doesn't exist
 os.makedirs("output", exist_ok=True)
 
+async def store_video_base64(video_path: str, prompt: str, description: str = "") -> None:
+    """
+    Convert video to base64 and store it in the database.
+    
+    Args:
+        video_path: Path to the video file
+        prompt: The original prompt used to generate the video
+        description: Optional description of the video
+    """
+    try:
+        # Read video file and convert to base64
+        with open(video_path, "rb") as video_file:
+            video_content = base64.b64encode(video_file.read()).decode('utf-8')
+            
+        # Create video data object
+        video_data = VideoCreate(
+            prompt=prompt,
+            description=description,
+            content=video_content,
+            metadata={
+                "format": "mp4",
+                "encoding": "base64"
+            }
+        )
+        
+        # Store in database
+        db = BasicDB()
+        await db.store_video(video_data)
+        
+    except Exception as e:
+        print(f"Failed to store video: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to store video: {str(e)}")
+
 @app.post("/generate")
 async def generate_video(request: GenerationRequest):
     try:
@@ -90,6 +130,9 @@ async def generate_video(request: GenerationRequest):
         else:
             final_video_path = video_path
             script = ''
+        
+        # Store the video in the database
+        await store_video_base64(final_video_path, request.prompt, script)
         
         return {
             "status": "success",
