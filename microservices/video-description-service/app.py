@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import logging
 from common.db import db
+from common.models import PromptCreate, PromptResponse, VideoCreate, VideoResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 # Set up logging
@@ -121,20 +122,19 @@ async def generate_description(request: GenerateRequest):
         response_content = response["message"]["content"]
         print(json.dumps(response_content, indent=4))
     
-            
         content = json.loads(response_content)
         
-        # Create prompt data
-        prompt_data = {
-            "topic": request.topic,
-            "output": content["videoDescription"],
-            "top_text": content["topText"],
-            "bottom_text": content["bottomText"],
-            "metadata": {
-                "generated_at": str(datetime.datetime.now()),
-                "model": "llama3.2:1b"
+        # Create prompt data using the new PromptCreate model
+        prompt_data = PromptCreate(
+            topic=request.topic,
+            output=content["videoDescription"],
+            top_text=content["topText"],
+            bottom_text=content["bottomText"],
+            metadata={
+                "generated_at": datetime.datetime.now().isoformat(),
+                "model": "llama3.2:3b"
             }
-        }
+        )
         
         # Store in database using the common db module
         logger.info(f"Storing prompt in database: {prompt_data}")

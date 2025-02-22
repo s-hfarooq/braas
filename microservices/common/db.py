@@ -1,9 +1,10 @@
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, List
 import requests
 from fastapi import HTTPException
 import os
 import json
 from pathlib import Path
+from .models import PromptCreate, PromptResponse, VideoCreate, VideoResponse
 
 class BasicDB:
     @staticmethod
@@ -46,31 +47,31 @@ class BasicDB:
             "Content-Type": "application/json"
         }
 
-    async def store_prompt(self, prompt_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def store_prompt(self, prompt_data: PromptCreate) -> PromptResponse:
         """Store a prompt in the Basic.tech database."""
         url = f"{self.base_url}/prompts"
-        payload = {"value": prompt_data}
+        payload = {"value": prompt_data.model_dump()}
         
         try:
             response = requests.post(url, json=payload, headers=self.headers)
             response.raise_for_status()
-            return response.json()
+            return PromptResponse(**response.json())
         except requests.exceptions.RequestException as e:
             raise HTTPException(status_code=500, detail=f"Failed to store prompt in database: {str(e)}")
 
-    async def store_video(self, video_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def store_video(self, video_data: VideoCreate) -> VideoResponse:
         """Store a video in the Basic.tech database."""
         url = f"{self.base_url}/video"
-        payload = {"value": video_data}
+        payload = {"value": video_data.model_dump()}
         
         try:
             response = requests.post(url, json=payload, headers=self.headers)
             response.raise_for_status()
-            return response.json()
+            return VideoResponse(**response.json())
         except requests.exceptions.RequestException as e:
             raise HTTPException(status_code=500, detail=f"Failed to store video in database: {str(e)}")
 
-    async def get_prompts(self, limit: int = 10) -> list[Dict[str, Any]]:
+    async def get_prompts(self, limit: int = 10) -> List[PromptResponse]:
         """Retrieve prompts from the Basic.tech database."""
         url = f"{self.base_url}/prompts"
         params = {"limit": limit}
@@ -78,11 +79,12 @@ class BasicDB:
         try:
             response = requests.get(url, headers=self.headers, params=params)
             response.raise_for_status()
-            return response.json()
+            data = response.json()
+            return [PromptResponse(**item) for item in data]
         except requests.exceptions.RequestException as e:
             raise HTTPException(status_code=500, detail=f"Failed to retrieve prompts from database: {str(e)}")
 
-    async def get_videos(self, limit: int = 10) -> list[Dict[str, Any]]:
+    async def get_videos(self, limit: int = 10) -> List[VideoResponse]:
         """Retrieve videos from the Basic.tech database."""
         url = f"{self.base_url}/video"
         params = {"limit": limit}
@@ -90,7 +92,8 @@ class BasicDB:
         try:
             response = requests.get(url, headers=self.headers, params=params)
             response.raise_for_status()
-            return response.json()
+            data = response.json()
+            return [VideoResponse(**item) for item in data]
         except requests.exceptions.RequestException as e:
             raise HTTPException(status_code=500, detail=f"Failed to retrieve videos from database: {str(e)}")
 
