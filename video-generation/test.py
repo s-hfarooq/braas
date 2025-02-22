@@ -7,7 +7,7 @@ from pydantic import BaseModel
 import os
 from typing import Optional
 import uuid
-from anthropic import Anthropic
+import requests
 from gtts import gTTS
 from moviepy.editor import VideoFileClip, AudioFileClip, concatenate_videoclips
 import tempfile
@@ -19,7 +19,7 @@ class GenerationRequest(BaseModel):
     num_inference_steps: Optional[int] = 10
     output_format: Optional[str] = "mp4"
     num_frames: Optional[int] = 16
-    claude_api_key: str  # Required for script generation
+    model_name: Optional[str] = "mistral"  # Ollama model to use
     add_audio: Optional[bool] = True  # Control whether to add TTS audio to the video
 
 # Determine the best available device
@@ -42,49 +42,21 @@ if device == "cuda":
     pipe.enable_model_cpu_offload()
     pipe.enable_vae_slicing()
 
-# Initialize Anthropic client
-anthropic = None
-
-def init_anthropic(api_key):
-    global anthropic
-    if not anthropic:
-        anthropic = Anthropic(api_key=api_key)
-
-def generate_script(prompt):
-    """Generate a script using Claude API based on the video content and prompt"""
-    if not anthropic:
-        raise ValueError("Claude API key not provided")
-    
-    message = f"""Based on the following video concept, create a short narration script (2-3 sentences):
-    {prompt}
-    Make it engaging and descriptive, suitable for a short video."""
-    
-    response = anthropic.messages.create(
-        model="claude-3-opus-20240229",
-        max_tokens=150,
-        messages=[{
-            "role": "user",
-            "content": message
-        }]
-    )
-    
-    print("Raw Claude response:", response)
-    print("Response type:", type(response))
-    print("Response content:", response.content)
-    print("Content type:", type(response.content))
-    
-    # Extract the text content from the response
-    if hasattr(response, 'content'):
-        if isinstance(response.content, list):
-            # If content is a list, get the first text element
-            return response.content[0].text
-        elif isinstance(response.content, str):
-            # If content is already a string, return it
-            return response.content
-        else:
-            # Try to convert to string
-            return str(response.content)
-    return ''
+def generate_script(prompt: str, model_name: str = "mistral") -> str:
+    """
+    Generate a script using Ollama based on the video content and prompt
+    """
+    try:
+        response = requests.post('http://localhost:11434/api/generate', 
+                               json={
+                                   "model": model_name,
+                                   "prompt": f"Write a short, engaging script for a video about: {prompt}. Keep it concise and natural, around 2-3 sentences. Only have narration and no audio descriptions of events. The text should only have things that should be spoken.",
+                                   "stream": False
+                               })
+        response.raise_for_status()
+        return response.json()['response'].strip()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating script: {str(e)}")
 
 # Create output directory if it doesn't exist
 os.makedirs("output", exist_ok=True)
@@ -92,9 +64,6 @@ os.makedirs("output", exist_ok=True)
 @app.post("/generate")
 async def generate_video(request: GenerationRequest):
     try:
-        # Initialize Anthropic client
-        init_anthropic(request.claude_api_key)
-        
         # Generate video frames
         video_frames = pipe(
             prompt=request.prompt,
@@ -103,15 +72,14 @@ async def generate_video(request: GenerationRequest):
         ).frames[0]
 
         # Generate unique filename
-        # print(video_frames)
         filename = f"output/video_{uuid.uuid4()}.{request.output_format}"
         
         # Export video
         video_path = export_to_video(video_frames, filename)
         
         if request.add_audio:
-            # Generate script using Claude
-            script = generate_script(request.prompt)
+            # Generate script using Ollama
+            script = generate_script(request.prompt, model_name=request.model_name)
             
             # Add audio to video
             final_video_path = add_audio_to_video(video_path, script)
