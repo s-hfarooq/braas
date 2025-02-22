@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    networks:
+      - braas-network
+    depends_on:
+      - video-description-service
+
+  video-description-service:
+    build:
+      context: ./microservices/video-description-service
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    volumes:
+      - ollama_data:/root/.ollama  # Persist Ollama models
+    networks:
+      - braas-network
+
+  # Video generation service will be added here later
+  # video-generation-service:
+  #   build: ...
+
+volumes:
+  ollama_data:  # Persistent volume for Ollama models
+    name: ollama_data
+
+networks:
+  braas-network:
+    name: braas-network 
