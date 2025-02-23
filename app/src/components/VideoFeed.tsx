@@ -71,6 +71,7 @@ const VideoFeed: React.FC = () => {
   const [loadingPrompts, setLoadingPrompts] = useState(false);
   const [generatingVideo, setGeneratingVideo] = useState(false);
   const [offset, setOffset] = useState(0);
+  const [noMoreContent, setNoMoreContent] = useState(false);
 
   // Basic.tech API headers
   const headers = {
@@ -273,7 +274,7 @@ const VideoFeed: React.FC = () => {
     const element = e.currentTarget;
     const scrolledToBottom = element.scrollHeight - element.scrollTop <= element.clientHeight * 1.2;
     
-    if (scrolledToBottom && !loadingPrompts && !generatingVideo) {
+    if (scrolledToBottom && !loadingPrompts && !generatingVideo && !noMoreContent) {
       console.log('[handleScroll] Reached bottom, loading more videos');
       setLoadingPrompts(true);
       try {
@@ -298,16 +299,13 @@ const VideoFeed: React.FC = () => {
           });
           setOffset(nextOffset);
         } else {
-          // Generate just one new video at a time
-          console.log('[handleScroll] No more videos, generating new video');
-          setGeneratingVideo(true);
-          const newVideo = await generateVideoDescription();
-          console.log('[handleScroll] Generated new video');
-          setVideos(prev => [...prev, newVideo]);
-          setGeneratingVideo(false);
+          // No more videos available
+          console.log('[handleScroll] No more videos available');
+          setNoMoreContent(true);
         }
       } catch (error) {
         console.error('[handleScroll] Error:', error);
+        setNoMoreContent(true);
       } finally {
         setLoadingPrompts(false);
       }
@@ -517,7 +515,7 @@ const VideoFeed: React.FC = () => {
           </div>
         </div>
       ))}
-      {(loadingPrompts || generatingVideo) && (
+      {(loadingPrompts || generatingVideo) && !noMoreContent && (
         <div
           style={{
             position: 'fixed',
@@ -544,6 +542,24 @@ const VideoFeed: React.FC = () => {
             animation: 'spin 1s linear infinite',
           }} />
           {generatingVideo ? 'Loading video...' : 'Loading more content...'}
+        </div>
+      )}
+      {noMoreContent && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: '20px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            color: '#fff',
+            padding: '12px 24px',
+            borderRadius: '8px',
+            fontSize: '16px',
+            zIndex: 1000,
+          }}
+        >
+          No more videos available
         </div>
       )}
       <style>
